@@ -44,18 +44,17 @@ class Database {
 
     /**
      * @method connect
-     * @description Tenta l'autenticazione e sincronizza i modelli con il database.
+     * @description Verifica la connessione. La creazione delle tabelle è gestita dagli script SQL.
      */
     public async connect(): Promise<void> {
         try {
-            // Verifica se le credenziali sono corrette e il server è raggiungibile 
+            // Verifichiamo solo se il database risponde
             await this.sequelize.authenticate();
             console.log('[DATABASE] Connessione stabilita con successo.');
             
-            // Sincronizzazione dei modelli: crea le tabelle se non esistono 
-            // force: false evita di cancellare i dati esistenti ad ogni riavvio 
-            await this.sequelize.sync({ force: false });
-            console.log('[DATABASE] Modelli sincronizzati correttamente.');
+            // RIMOSSO: this.sequelize.sync() 
+            // In un approccio SQL-First, non vogliamo che l'ORM modifichi lo schema.
+            console.log('[DATABASE] Modalità SQL-First attiva: Schema gestito esternamente.');
         } catch (error: any) {
             const dbError = ErrorFactory.getError('DATABASE_ERROR', error.message);
             console.error('[DATABASE] Errore critico durante il bootstrap:', dbError.toJSON());

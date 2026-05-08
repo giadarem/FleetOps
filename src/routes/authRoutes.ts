@@ -1,18 +1,18 @@
 import { Router } from 'express';
 import { AuthController } from '../controllers/AuthController';
 import { AuthService } from '../services/authService';
-import { UserRepository } from '../repository/userRepository';
-import { UserDAO } from '../dao/userDAO';
+import { UserRepository } from '../repository/UserRepository';
 
 const router = Router();
 
-// Implementazione della Dependency Injection esplicita
-const userDAO = new UserDAO();
-const userRepository = new UserRepository(userDAO);
+// Dependency Injection manuale (colleghiamo i pezzi)
+const userRepository = new UserRepository();
 const authService = new AuthService(userRepository);
 const authController = new AuthController(authService);
 
-// L'azione è già implicita nel verbo della chiamata HTTP
+/**
+ * Endpoint: POST /api/auth/login
+ */
 router.post('/login', authController.login);
 
 export default router;

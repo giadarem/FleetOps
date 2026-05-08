@@ -1,40 +1,35 @@
-import { Request, Response, NextFunction } from 'express';
+import { Request, Response } from 'express';
 import { AuthService } from '../services/authService';
-import { HttpStatus } from '../enum/httpStatus';
 
 /**
  * @class AuthController
- * @description Controller che espone gli endpoint per l'autenticazione, facendo uso di un service 
- * per poter interrogare le basi di dati in modo indiretto.
+ * @description Gestore delle richieste HTTP per l'autenticazione.
  */
 export class AuthController {
-    /**
-     * @constructor
-     * @param {AuthService} authService - Servizio iniettato tramite Dependency Injection.
-     */
     constructor(private readonly authService: AuthService) {}
 
     /**
-     * @method login
-     * @description Intercetta la richiesta HTTP POST, estrae il payload e delega l'elaborazione.
-     * @param {Request} req - Oggetto della richiesta Express.
-     * @param {Response} res - Oggetto della risposta Express.
-     * @param {NextFunction} next - Middleware per la propagazione delle eccezioni all'ErrorHandler.
+     * Gestisce l'endpoint di login.
      */
-    login = async (req: Request, res: Response, next: NextFunction) => {
+    login = async (req: Request, res: Response) => {
         try {
             const { email, password } = req.body;
+            
+            // Invochiamo il servizio
             const result = await this.authService.login(email, password);
-
-            // Nelle API è obbligatorio far rispondere con stringhe sotto forma di JSON
-            return res.status(HttpStatus.OK).json({
-                status: HttpStatus.OK,
-                message: 'Accesso eseguito correttamente.',
-                data: result
+            
+            // Se tutto va bene, rispondiamo 200 OK
+            return res.status(200).json(result);
+        } catch (error: any) {
+            /**
+             * Agisce ErrorFactory. 
+             * Se il service lancia un errore 'UNAUTHORIZED', 
+             * verrà catturato qui e inviato al client.
+             */
+            return res.status(error.status || 500).json({
+                error: error.name,
+                message: error.message
             });
-        } catch (error) {
-            // Inoltro dell'errore verso i livelli di middleware successivi (ErrorHandler)
-            next(error);
         }
     };
 }
