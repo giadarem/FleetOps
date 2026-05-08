@@ -1,0 +1,34 @@
+version: '3.8'
+services:
+  app:
+    build: .
+    image: progetto_pa
+    container_name: progetto_pa
+    ports:
+      - "3000:3000"
+    volumes:
+      - .:/usr/src/app
+      - /usr/src/app/node_modules
+    env_file:
+      - .env
+    depends_on:
+      - db
+
+  db:
+    image: postgres:15
+    container_name: postgres_db
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PWD}
+    volumes:
+      # Volume nominato per garantire la persistenza dei dati del DB in modo sicuro
+      - progetto_pa_database:/var/lib/postgresql/data
+      # Bind mount per lo script di seeding automatico all'avvio dal tuo PC
+      - ./sql:/docker-entrypoint-initdb.d
+     
+# Dichiarazione obbligatoria del volume alla fine del file
+volumes:
+  progetto_pa_database: 
