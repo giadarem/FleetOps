@@ -18,6 +18,20 @@ export class UserRepository {
      * Recupera un utente tramite il suo ID.
      */
     async getById(id: string): Promise<User | null> {
-        return await User.findByPk(id);
+    return await User.findByPk(id, {
+        attributes: ['id', 'email', 'role', 'tokenBalance', 'points']
+    });
+}
+
+    /**
+     * Restituisce la classifica ordinata per punteggio decrescente.
+     * Limita i risultati per non appesantire il database.
+     */
+    async getLeaderboard(limit: number = 10): Promise<User[]> {
+        return await User.findAll({
+            order: [['points', 'DESC']],
+            limit: limit,
+            attributes: ['id', 'email', 'points'] // Escludiamo la password per sicurezza
+        });
     }
 }

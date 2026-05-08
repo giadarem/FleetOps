@@ -8,7 +8,7 @@ import { ErrorFactory } from '../patterns/ErrorFactory';
  * @description Classe di utilità per la gestione dei token JWT tramite algoritmo RS256.
  */
 export class JWTUtils {
-    private static privateKey = fs.readFileSync(path.join(__dirname, '../../jwt/private.key'), 'utf8');
+    // La chiave PUBBLICA può rimanere in un file fisico (Corretto)
     private static publicKey = fs.readFileSync(path.join(__dirname, '../../jwt/public.key'), 'utf8');
 
     /**
@@ -16,7 +16,14 @@ export class JWTUtils {
      * @description Firma un nuovo token includendo il payload dell'utente.
      */
     public static generateToken(payload: object): string {
-        return jwt.sign(payload, this.privateKey, { 
+        // REQUISITO DI ESAME: La chiave PRIVATA deve essere caricata dal .env e non da file fisico
+        const privateKey = process.env.JWT_PRIVATE_KEY?.replace(/\\n/g, '\n');
+
+        if (!privateKey) {
+            throw ErrorFactory.getError('INTERNAL_SERVER_ERROR', 'Chiave privata JWT non configurata nel .env');
+        }
+
+        return jwt.sign(payload, privateKey, { 
             algorithm: 'RS256', 
             expiresIn: '1h' 
         });
