@@ -27,7 +27,7 @@ class Database {
             throw ErrorFactory.getError('DATABASE_ERROR', msg);
         }
 
-        // Inizializzazione della connessione [cite: 207, 265]
+        // Inizializzazione della connessione
         this.sequelize = new Sequelize(DB_NAME, DB_USER, DB_PWD, {
             host: DB_HOST,
             dialect: DB_DIALECT,
@@ -52,9 +52,6 @@ class Database {
             await this.sequelize.authenticate();
             console.log('[DATABASE] Connessione stabilita con successo.');
             
-            // RIMOSSO: this.sequelize.sync() 
-            // In un approccio SQL-First, non vogliamo che l'ORM modifichi lo schema.
-            console.log('[DATABASE] Modalità SQL-First attiva: Schema gestito esternamente.');
         } catch (error: any) {
             const dbError = ErrorFactory.getError('DATABASE_ERROR', error.message);
             console.error('[DATABASE] Errore critico durante il bootstrap:', dbError.toJSON());

@@ -3,7 +3,7 @@ import { IDAO } from './IDAO';
 
 /**
  * @class UserDAO
- * @description Implementazione dell'interfaccia IDAO per l'entità User [cite: 93-100].
+ * @description Implementazione dell'interfaccia IDAO per l'entità User 
  */
 export class UserDAO implements IDAO<User> {
     

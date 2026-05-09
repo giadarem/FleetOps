@@ -6,6 +6,7 @@ import { ErrorFactory } from './patterns/ErrorFactory';
 import authRoutes from './routes/authRoutes';
 import User from './models/User';
 import userRoutes from './routes/userRoutes';
+import gameRoutes from './routes/gameRoutes';
 
 dotenv.config();
 
@@ -34,6 +35,7 @@ class AppServer {
         this.app.use(express.json());
         this.app.use('/api/auth', authRoutes);
         this.app.use('/api/users', userRoutes);
+        this.app.use('/api/games', gameRoutes);
         // Esempio temporaneo per testare il flusso degli errori
         this.app.get('/test-error', (req, res, next) => {
             // Solleva un'eccezione che verrà intercettata dall'ErrorHandler

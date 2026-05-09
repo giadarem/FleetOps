@@ -7,20 +7,89 @@ VALUES
 ('b0000000-0000-0000-0000-000000000001', 'player1@fleetops.com', '$2b$10$9HwoL5MG5ERHhUDkbCm8Hel5GNK8JrfZZVtc8l0Jy4q0p/fxaPnfW', 'USER', 10.0, 1.0, NOW(), NOW()),
 ('b0000000-0000-0000-0000-000000000002', 'player2@fleetops.com', '$2b$10$9HwoL5MG5ERHhUDkbCm8Hel5GNK8JrfZZVtc8l0Jy4q0p/fxaPnfW', 'USER', 9.775, 0.0, NOW(), NOW());
 
--- Inserimento di una Partita Demo conclusa (PVP)
-INSERT INTO "Games" ("id", "type", "status", "gridSize", "winnerId", "createdAt", "updatedAt")
-VALUES 
-('c0000000-0000-0000-0000-000000000001', 'PVP', 'FINISHED', 22, 'b0000000-0000-0000-0000-000000000001', NOW(), NOW());
 
--- Inserimento delle Plance di Gioco collegate alla partita demo (con le navi in formato JSONB)
-INSERT INTO "PlayerBoards" ("id", "gameId", "userId", "shipsPlacement", "createdAt", "updatedAt")
+-- =============================================================================
+-- INSERIMENTO PARTITA DEMO (Con Plance e Mosse incorporate)
+-- =============================================================================
+INSERT INTO "Games" ("id", "player1Id", "player2Id", "status", "winnerId", "gameState", "createdAt", "updatedAt")
 VALUES 
-('d0000000-0000-0000-0000-000000000001', 'c0000000-0000-0000-0000-000000000001', 'b0000000-0000-0000-0000-000000000001', '{"destroyer": [[0,0],[0,1]], "submarine": [[5,5],[5,6],[5,7]]}'::jsonb, NOW(), NOW()),
-('d0000000-0000-0000-0000-000000000002', 'c0000000-0000-0000-0000-000000000001', 'b0000000-0000-0000-0000-000000000002', '{"destroyer": [[10,10],[10,11]], "submarine": [[15,15],[15,16],[15,17]]}'::jsonb, NOW(), NOW());
-
--- Inserimento delle mosse nello storico della partita demo
-INSERT INTO "Moves" ("id", "gameId", "userId", "x", "y", "result", "createdAt", "updatedAt")
-VALUES 
-('e0000000-0000-0000-0000-000000000001', 'c0000000-0000-0000-0000-000000000001', 'b0000000-0000-0000-0000-000000000001', 10, 10, 'HIT', NOW() - INTERVAL '3 minutes', NOW() - INTERVAL '3 minutes'),
-('e0000000-0000-0000-0000-000000000002', 'c0000000-0000-0000-0000-000000000001', 'b0000000-0000-0000-0000-000000000002', 0, 0, 'HIT', NOW() - INTERVAL '2 minutes', NOW() - INTERVAL '2 minutes'),
-('e0000000-0000-0000-0000-000000000003', 'c0000000-0000-0000-0000-000000000001', 'b0000000-0000-0000-0000-000000000001', 10, 11, 'SUNK', NOW() - INTERVAL '1 minute', NOW() - INTERVAL '1 minute');
+(
+  'c0000000-0000-0000-0000-000000000001', 
+  'b0000000-0000-0000-0000-000000000001', -- player1Id
+  'b0000000-0000-0000-0000-000000000002', -- player2Id
+  'FINISHED',                             -- status
+  'b0000000-0000-0000-0000-000000000001', -- winnerId (Player 1 ha vinto)
+  
+  -- Inizio del campo JSONB (Mappato esattamente sull'interfaccia GameState)
+  '{
+    "configuration": {
+      "gridSize": 22,
+      "shipTypes": [
+        { "type": 1, "size": 2, "count": 1 },
+        { "type": 2, "size": 3, "count": 1 }
+      ]
+    },
+    
+    "player1Board": {
+      "ships": [
+        {
+          "type": 1, "size": 2, 
+          "coordinates": [{"x": 0, "y": 0}, {"x": 0, "y": 1}], 
+          "hits": [true, false], 
+          "isSunk": false
+        },
+        {
+          "type": 2, "size": 3, 
+          "coordinates": [{"x": 5, "y": 5}, {"x": 5, "y": 6}, {"x": 5, "y": 7}], 
+          "hits": [false, false, false], 
+          "isSunk": false
+        }
+      ],
+      "shotsReceived": [{"x": 0, "y": 0}]
+    },
+    
+    "player2Board": {
+      "ships": [
+        {
+          "type": 1, "size": 2, 
+          "coordinates": [{"x": 10, "y": 10}, {"x": 10, "y": 11}], 
+          "hits": [true, true], 
+          "isSunk": true
+        },
+        {
+          "type": 2, "size": 3, 
+          "coordinates": [{"x": 15, "y": 15}, {"x": 15, "y": 16}, {"x": 15, "y": 17}], 
+          "hits": [false, false, false], 
+          "isSunk": false
+        }
+      ],
+      "shotsReceived": [{"x": 10, "y": 10}, {"x": 10, "y": 11}]
+    },
+    
+    "currentTurn": "b0000000-0000-0000-0000-000000000002",
+    
+    "history": [
+      {
+        "playerId": "b0000000-0000-0000-0000-000000000001",
+        "x": 10, "y": 10,
+        "result": "HIT",
+        "timestamp": "2026-05-09T08:00:00Z"
+      },
+      {
+        "playerId": "b0000000-0000-0000-0000-000000000002",
+        "x": 0, "y": 0,
+        "result": "HIT",
+        "timestamp": "2026-05-09T08:01:00Z"
+      },
+      {
+        "playerId": "b0000000-0000-0000-0000-000000000001",
+        "x": 10, "y": 11,
+        "result": "SUNK",
+        "timestamp": "2026-05-09T08:02:00Z"
+      }
+    ]
+  }'::jsonb, 
+  
+  NOW(), 
+  NOW()
+);

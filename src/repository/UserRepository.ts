@@ -34,4 +34,11 @@ export class UserRepository {
             attributes: ['id', 'email', 'points'] // Escludiamo la password per sicurezza
         });
     }
+
+    /**
+     * Aggiorna e persiste le modifiche di un'istanza User nel database.
+     */
+    async update(user: User): Promise<User> {
+        return await user.save(); 
+    }
 }
