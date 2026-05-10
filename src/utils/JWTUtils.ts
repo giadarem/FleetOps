@@ -16,7 +16,7 @@ export class JWTUtils {
      * @description Firma un nuovo token includendo il payload dell'utente.
      */
     public static generateToken(payload: object): string {
-        // REQUISITO DI ESAME: La chiave PRIVATA deve essere caricata dal .env e non da file fisico
+       
         const privateKey = process.env.JWT_PRIVATE_KEY?.replace(/\\n/g, '\n');
 
         if (!privateKey) {

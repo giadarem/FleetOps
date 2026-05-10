@@ -40,7 +40,7 @@ User.init(
       allowNull: false,
       defaultValue: UserRole.USER,
     },
-    // MAPPIAMO I NUOVI CAMPI
+    // MAPPA I NUOVI CAMPI
     tokenBalance: {
       type: DataTypes.DOUBLE, 
       allowNull: false,

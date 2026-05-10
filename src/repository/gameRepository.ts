@@ -2,6 +2,8 @@
 import { GameDAO } from '../dao/gameDAO';
 import Game from '../models/game';
 import { Transaction } from 'sequelize';
+import { Op } from 'sequelize'; // Assicurati di importare Op da sequelize
+import User from '../models/User'; // E il modello User
 
 /**
  * @class gameRepository
@@ -42,5 +44,19 @@ export class GameRepository {
      */
     async updateGame(game: Game, transaction?: Transaction): Promise<Game> {
         return await this.gameDAO.update(game, transaction);
+    }
+
+    async getAllUserGamesWithEmails(userId: string) {
+        return await Game.findAll({
+            where: {
+                [Op.or]: [{ player1Id: userId }, { player2Id: userId }]
+            },
+            include: [
+                { model: User, as: 'Player1', attributes: ['email'] },
+                { model: User, as: 'Player2', attributes: ['email'] },
+                { model: User, as: 'Winner', attributes: ['email'] }
+            ],
+            order: [['createdAt', 'DESC']]
+        });
     }
 }

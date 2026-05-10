@@ -1,26 +1,20 @@
-// src/utils/GameEngine.ts
+// src/utils/gameEngine.ts
 import { ShipConfiguration, Ship, Coordinate, Board } from '../types/gameTypes';
 import { ErrorFactory } from '../patterns/ErrorFactory';
+import { MoveResult } from '../enum/moveResult';
 
 /**
  * @class GameEngine
  * @description Core engine di dominio per la Battaglia Navale.
- * Gestisce la logica spaziale complessa, totalmente disaccoppiata dall'infrastruttura web o DB.
  */
 export class GameEngine {
     
     /**
      * @method generateRandomBoard
-     * @description Genera lo schieramento iniziale di una singola plancia, posizionando le navi
-     * in modo pseudo-casuale rispettando i vincoli di non-sovrapposizione e i limiti della griglia.
-     * @param {number} gridSize - Il lato della griglia quadrata (es. 22).
-     * @param {ShipConfiguration[]} configurations - Le regole di generazione (quantità e dimensione navi).
-     * @returns {Board} L'oggetto Board rappresentante la plancia pronta per il salvataggio.
-     * @throws {HttpError} Se la densità richiesta è troppo alta e l'algoritmo va in timeout.
+     * @description Genera lo schieramento iniziale di una singola plancia.
      */
     public static generateRandomBoard(gridSize: number, configurations: ShipConfiguration[]): Board {
         const placedShips: Ship[] = [];
-        // Limite massimo di tentativi per nave per prevenire loop infiniti (Edge Case: griglia troppo piccola)
         const MAX_ATTEMPTS = 2000; 
 
         for (const config of configurations) {
@@ -30,57 +24,38 @@ export class GameEngine {
 
                 while (!isPlaced && attempts < MAX_ATTEMPTS) {
                     attempts++;
-                    
-                    // 1. Scelta direzionale randomica: true = Verticale, false = Orizzontale
                     const isVertical = Math.random() < 0.5;
-                    
-                    // 2. Generazione del punto di origine (testa della nave)
                     const startX = Math.floor(Math.random() * gridSize);
                     const startY = Math.floor(Math.random() * gridSize);
 
-                    // 3. Proiezione spaziale dell'ingombro della nave
                     const targetCoordinates = this.projectShipCoordinates(startX, startY, config.size, isVertical);
 
-                    // 4. Validazione Architetturale: Controllo Limiti e Collisioni
                     if (this.isWithinBounds(targetCoordinates, gridSize) && !this.hasCollision(targetCoordinates, placedShips)) {
-                        
-                        // Creazione dell'entità Nave pronta per l'inserimento
                         const newShip: Ship = {
                             type: config.type,
                             size: config.size,
                             coordinates: targetCoordinates,
-                            // Inizializza l'array dei colpi a false (nessun danno)
                             hits: new Array(config.size).fill(false), 
                             isSunk: false
                         };
 
                         placedShips.push(newShip);
-                        isPlaced = true; // Interrompe il loop while per passare alla nave successiva
+                        isPlaced = true;
                     }
                 }
 
-                // Gestione Errori: Se l'algoritmo non trova spazio dopo 2000 tentativi, la configurazione è invalida
                 if (!isPlaced) {
-                    throw ErrorFactory.getError(
-                        'BAD_REQUEST', 
-                        `Impossibile allocare la nave di tipo ${config.type}. Griglia troppo densa o piccola.`
-                    );
+                    throw ErrorFactory.getError('BAD_REQUEST', `Impossibile allocare la nave di tipo ${config.type}.`);
                 }
             }
         }
 
-        // Ritorna la plancia formattata secondo il contratto GameTypes
         return {
             ships: placedShips,
-            shotsReceived: [] // Nessun colpo ricevuto all'inizio della partita
+            shotsReceived: []
         };
     }
 
-    /**
-     * @method projectShipCoordinates
-     * @private
-     * @description Calcola l'array di coordinate occupate da una nave partendo dalla sua origine.
-     */
     private static projectShipCoordinates(startX: number, startY: number, size: number, isVertical: boolean): Coordinate[] {
         const coords: Coordinate[] = [];
         for (let i = 0; i < size; i++) {
@@ -92,32 +67,72 @@ export class GameEngine {
         return coords;
     }
 
-    /**
-     * @method isWithinBounds
-     * @private
-     * @description Verifica che nessuna sezione della nave sporga oltre i limiti della griglia.
-     */
     private static isWithinBounds(coords: Coordinate[], gridSize: number): boolean {
-        // Ritorna true solo se TUTTE (every) le coordinate rispettano i limiti [0, gridSize-1]
         return coords.every(c => c.x >= 0 && c.x < gridSize && c.y >= 0 && c.y < gridSize);
     }
 
-    /**
-     * @method hasCollision
-     * @private
-     * @description Algoritmo di intersezione. Verifica se le nuove coordinate collidono con la flotta esistente.
-     */
     private static hasCollision(newCoords: Coordinate[], existingShips: Ship[]): boolean {
         for (const ship of existingShips) {
             for (const existingCoord of ship.coordinates) {
                 for (const newCoord of newCoords) {
-                    // Controllo di equivalenza spaziale 1:1
-                    if (existingCoord.x === newCoord.x && existingCoord.y === newCoord.y) {
-                        return true; // Collisione rilevata, interruzione anticipata (Short-circuit)
-                    }
+                    if (existingCoord.x === newCoord.x && existingCoord.y === newCoord.y) return true;
                 }
             }
         }
-        return false; // Nessuna collisione, rotta libera
+        return false;
+    }
+
+    /**
+     * @method applyMove
+     * @description Calcola l'esito di un attacco (MISS, HIT, SUNK).
+     */
+    public static applyMove(board: Board, target: Coordinate): { result: MoveResult; updatedBoard: Board } {
+        // Registra il colpo
+        board.shotsReceived.push(target);
+        let moveResult: MoveResult = MoveResult.MISS;
+
+        for (const ship of board.ships) {
+            const hitIndex = ship.coordinates.findIndex(c => c.x === target.x && c.y === target.y);
+
+            if (hitIndex !== -1) {
+                ship.hits[hitIndex] = true;
+                moveResult = MoveResult.HIT;
+
+                if (ship.hits.every(h => h === true)) {
+                    ship.isSunk = true;
+                    moveResult = MoveResult.SUNK;
+                }
+                break;
+            }
+        }
+
+        return { result: moveResult, updatedBoard: board };
+    }
+
+    /**
+     * @method checkVictory
+     */
+    public static checkVictory(board: Board): boolean {
+        return board.ships.every(ship => ship.isSunk);
+    }
+
+    /**
+     * @method generateIAMove
+     * @description Genera coordinate valide per l'IA evitando duplicati.
+     * @fix Risolto errore di inizializzazione variabili e tipizzazione Coordinate.
+     */
+    public static generateIAMove(gridSize: number, shotsReceived: Coordinate[]): Coordinate {
+        let x: number = 0;
+        let y: number = 0;
+        let alreadyShot: boolean = false;
+
+        do {
+            x = Math.floor(Math.random() * gridSize);
+            y = Math.floor(Math.random() * gridSize);
+            // Controllo se l'IA ha già sparato in queste coordinate
+            alreadyShot = shotsReceived.some(s => s.x === x && s.y === y);
+        } while (alreadyShot);
+
+        return { x, y };
     }
 }

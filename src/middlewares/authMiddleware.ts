@@ -10,10 +10,10 @@ export const authenticateJWT = (req: Request, res: Response, next: NextFunction)
         }
 
         const token = authHeader.split(' ')[1];
-        // Sfruttiamo il tuo JWTUtils per validare la firma RS256
+        // validazione la firma RS256
         const decoded = JWTUtils.verifyToken(token);
         
-        // Iniettiamo i dati dell'utente nella request per i middleware successivi
+        // Inietta i dati dell'utente nella request per i middleware successivi
         (req as any).user = decoded; 
         
         next();

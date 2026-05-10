@@ -1,4 +1,3 @@
-// src/dao/gameDAO.ts
 import { IGameDAO } from './IgameDAO';
 import Game from '../models/game';
 import { Transaction, Op } from 'sequelize';

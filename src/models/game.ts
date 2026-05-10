@@ -4,6 +4,7 @@ import db from '../config/database'; // Importazione del Singleton Database
 import User from './User';
 import { GameState } from '../types/gameTypes';
 import { GameStatus } from '../enum/gameStatus';
+import { GameType } from '../enum/gameType';
 
 /**
  * @interface GameAttributes
@@ -28,6 +29,7 @@ interface GameAttributes {
      * prestazioni ottimali in lettura/scrittura dell'intero contesto di gioco.
      */
     gameState: GameState;
+    type: GameType;
 }
 
 /**
@@ -44,6 +46,7 @@ interface GameCreationAttributes extends Optional<GameAttributes, 'id' | 'status
  */
 class Game extends Model<GameAttributes, GameCreationAttributes> implements GameAttributes {
     public id!: string;
+    public type!: GameType;
     public player1Id!: string;
     public player2Id!: string | null;
     public status!: GameStatus; 
@@ -63,6 +66,12 @@ Game.init(
             defaultValue: DataTypes.UUIDV4,
             primaryKey: true,
         },
+        type: {
+            // Estrae i valori 'PVP' e 'PVE' dall'enum
+            type: DataTypes.ENUM(...Object.values(GameType)),
+            allowNull: false,
+            defaultValue: GameType.PVE // Scelta prudenziale
+         },
         player1Id: {
             type: DataTypes.UUID,
             allowNull: false,
@@ -70,11 +79,11 @@ Game.init(
         },
         player2Id: {
             type: DataTypes.UUID,
-            allowNull: true, // Ammesso null per soddisfare il requisito PvE (Player vs Elaboratore) 
+            allowNull: true, // Ammesso null per soddisfare il requisito PvE 
             references: { model: 'Users', key: 'id' }
         },
         status: {
-            // Estraiamo dinamicamente i valori dall'enum per passarli al dialect PostgreSQL
+            // Estrae dinamicamente i valori dall'enum per passarli al dialect PostgreSQL
             type: DataTypes.ENUM(...Object.values(GameStatus)),
             defaultValue: GameStatus.ACTIVE,
         },
@@ -98,7 +107,6 @@ Game.init(
 );
 
 // --- Definizione delle Associazioni (Relazioni 1:N) --
-
 // Un utente (User) può partecipare a molte partite (Game) come Player 1
 User.hasMany(Game, { foreignKey: 'player1Id', as: 'gamesAsPlayer1' });
 // Un utente (User) può partecipare a molte partite (Game) come Player 2

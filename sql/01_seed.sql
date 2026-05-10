@@ -5,16 +5,15 @@ VALUES
 -- password: password123
 ('a0000000-0000-0000-0000-000000000000', 'admin@fleetops.com', '$2b$10$9HwoL5MG5ERHhUDkbCm8Hel5GNK8JrfZZVtc8l0Jy4q0p/fxaPnfW', 'ADMIN', 1000.0, 0.0, NOW(), NOW()),
 ('b0000000-0000-0000-0000-000000000001', 'player1@fleetops.com', '$2b$10$9HwoL5MG5ERHhUDkbCm8Hel5GNK8JrfZZVtc8l0Jy4q0p/fxaPnfW', 'USER', 10.0, 1.0, NOW(), NOW()),
-('b0000000-0000-0000-0000-000000000002', 'player2@fleetops.com', '$2b$10$9HwoL5MG5ERHhUDkbCm8Hel5GNK8JrfZZVtc8l0Jy4q0p/fxaPnfW', 'USER', 9.775, 0.0, NOW(), NOW());
+('b0000000-0000-0000-0000-000000000002', 'player2@fleetops.com', '$2b$10$9HwoL5MG5ERHhUDkbCm8Hel5GNK8JrfZZVtc8l0Jy4q0p/fxaPnfW', 'USER', 0.2, 0.0, NOW(), NOW());
 
 
--- =============================================================================
--- INSERIMENTO PARTITA DEMO (Con Plance e Mosse incorporate)
--- =============================================================================
-INSERT INTO "Games" ("id", "player1Id", "player2Id", "status", "winnerId", "gameState", "createdAt", "updatedAt")
+-- ============ INSERIMENTO PARTITA ===================
+INSERT INTO "Games" ("id", "type", "player1Id", "player2Id", "status", "winnerId", "gameState", "createdAt", "updatedAt")
 VALUES 
 (
   'c0000000-0000-0000-0000-000000000001', 
+  'PVP',                                  -- type (Aggiunto per matchare lo schema)
   'b0000000-0000-0000-0000-000000000001', -- player1Id
   'b0000000-0000-0000-0000-000000000002', -- player2Id
   'FINISHED',                             -- status

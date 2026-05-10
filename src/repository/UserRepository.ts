@@ -31,7 +31,7 @@ export class UserRepository {
         return await User.findAll({
             order: [['points', 'DESC']],
             limit: limit,
-            attributes: ['id', 'email', 'points'] // Escludiamo la password per sicurezza
+            attributes: ['id', 'email', 'points'] // Escludo la password per sicurezza
         });
     }
 

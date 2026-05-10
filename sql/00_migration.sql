@@ -5,8 +5,8 @@
  * Architettura: Ottimizzata con JSONB per massime prestazioni di lettura/scrittura dello stato.
  */
 
--- =============================================================================
--- CLEANUP VECCHIO SCHEMA 
+-
+-- ======== CLEANUP VECCHIO SCHEMA ==============
 DROP TABLE IF EXISTS "Moves" CASCADE;
 DROP TABLE IF EXISTS "PlayerBoards" CASCADE;
 DROP TABLE IF EXISTS "Games" CASCADE;
@@ -17,18 +17,19 @@ DROP TYPE IF EXISTS "enum_Games_type" CASCADE;
 DROP TYPE IF EXISTS "enum_Games_status" CASCADE;
 DROP TYPE IF EXISTS "enum_Users_role" CASCADE;
 
--- =============================================================================
--- 1. DEFINIZIONE ENUM CUSTOM 
 
+-- =========== 1. DEFINIZIONE ENUM CUSTOM ===================
 -- Definisce i permessi d'accesso: ADMIN per ricariche, USER per il gioco
 CREATE TYPE "enum_Users_role" AS ENUM ('USER', 'ADMIN');
+
+-- Distingue le partite tra giocatore vs giocatore e giocatore vs IA
+CREATE TYPE "enum_Games_type" AS ENUM ('PVP', 'PVE');
 
 -- Macchina a stati della partita: gestisce il ciclo di vita dall'attesa alla conclusione
 CREATE TYPE "enum_Games_status" AS ENUM ('PENDING', 'ACTIVE', 'FINISHED', 'ABANDONED');
 
--- =============================================================================
--- 2. TABELLA: Users
 
+-- ============= 2. TABELLA: Users ==============
 CREATE TABLE "Users" (
     "id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     "email" VARCHAR(255) NOT NULL UNIQUE,
@@ -45,11 +46,12 @@ CREATE TABLE "Users" (
     "updatedAt" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
--- =============================================================================
--- 3. TABELLA: Games
-
+-- =========== 3. TABELLA: Games ===================
 CREATE TABLE "Games" (
     "id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    
+    -- NUOVO: Tipologia di partita (PVP o PVE)
+    "type" "enum_Games_type" NOT NULL DEFAULT 'PVE',
     
     -- Chiavi esterne verso i giocatori. player2Id è NULL se la partita è contro l'IA (PvE).
     "player1Id" UUID NOT NULL REFERENCES "Users"("id") ON UPDATE CASCADE ON DELETE CASCADE,

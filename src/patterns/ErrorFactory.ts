@@ -60,7 +60,7 @@ export class ErrorFactory {
     /**
      * @method getError
      * @static
-     * @param {string} type - La tipologia di errore richiesta.
+     * @param {string} type - La tipologia di errore richiesta
      * @param {string} [customMessage] - Messaggio opzionale per sovrascrivere quello di default.
      * @returns {IAppError} L'istanza dell'errore corrispondente.
      * @description Utilizza uno switch-case per gestire gli errori noti al sistema.

@@ -10,9 +10,6 @@ const userRepository = new UserRepository();
 const authService = new AuthService(userRepository);
 const authController = new AuthController(authService);
 
-/**
- * Endpoint: POST /api/auth/login
- */
 router.post('/login', authController.login);
 
 export default router;

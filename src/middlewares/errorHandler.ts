@@ -24,7 +24,7 @@ export const errorHandlerMiddleware = (
     if (err && typeof err.toJSON === 'function') {
         appError = err;
     } else {
-        // Fallback: wrappa l'errore generico non gestito tramite la Factory
+        //wrappa l'errore generico non gestito tramite la Factory
         appError = ErrorFactory.getError('INTERNAL_SERVER_ERROR', err.message || 'Errore di sistema imprevisto');
     }
 

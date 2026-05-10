@@ -6,7 +6,8 @@ dotenv.config();
 
 /**
  * @class Database
- * @description Singleton per la gestione della connessione a Sequelize con validazione delle variabili d'ambiente.
+ * @description Singleton per la gestione della connessione a Sequelize con validazione delle
+ *  variabili d'ambiente.
  */
 class Database {
     private static instance: Database;
@@ -21,7 +22,7 @@ class Database {
         // Utilizzo di un cast per il tipo Dialect richiesto da Sequelize
         const DB_DIALECT = (process.env.DB_DIALECT as Dialect) || 'postgres';
 
-        // Validazione rigorosa: se manca una variabile fondamentale, si solleva un errore immediato 
+        // Validazione : se manca una variabile fondamentale, si solleva un errore immediato 
         if (!DB_NAME || !DB_USER || !DB_PWD || !DB_HOST) {
             const msg = 'Errore di configurazione: Variabili d\'ambiente del database (DB_NAME, DB_USER, DB_PWD, DB_HOST) mancanti.';
             throw ErrorFactory.getError('DATABASE_ERROR', msg);
@@ -48,7 +49,7 @@ class Database {
      */
     public async connect(): Promise<void> {
         try {
-            // Verifichiamo solo se il database risponde
+            // Verifica solo se il database risponde
             await this.sequelize.authenticate();
             console.log('[DATABASE] Connessione stabilita con successo.');
             
