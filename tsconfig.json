@@ -3,9 +3,14 @@
     "target": "es2016",
     "module": "commonjs",
     "outDir": "./dist",
-    "rootDir": "./src",
+    "rootDir": ".",
     "strict": true,
-    "experimentalDecorators": true, 
-    "esModuleInterop": true
-  }
+    "experimentalDecorators": true,
+    "types": ["node", "jest"],
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "skipLibCheck": true
+  },
+  "include": ["src/**/*", "tests/**/*"],
+  "exclude": ["node_modules"]
 }

@@ -1,157 +1,214 @@
+// src/services/PvEGameService.ts
+
 import { BaseGameService } from './baseGameService';
 import { GameType } from '../enum/gameType';
 import { GameStatus } from '../enum/gameStatus';
 import { ErrorFactory } from '../patterns/ErrorFactory';
-import { GameEngine } from '../utils/gameEngine'; // Assicurati che il path sia corretto
+import { GameEngine } from '../utils/gameEngine';
 import { ShipConfiguration, GameState } from '../types/gameTypes';
 import db from '../config/database';
+import { MOVE_COST } from '../config/gameCosts';
 
+/**
+ * @class PvEGameService
+ * @description Service responsabile della logica applicativa delle partite PvE.
+ * Estende BaseGameService e gestisce creazione della partita contro IA,
+ * elaborazione delle mosse dell’utente, risposta automatica dell’IA,
+ * aggiornamento dello stato di gioco, token e punteggi.
+ */
 export class PvEGameService extends BaseGameService {
-    
+    /**
+     * @method create
+     * @description Crea una nuova partita PvE all’interno di una transazione.
+     * Prepara i dati comuni della partita, scala il costo di creazione all’utente,
+     * inizializza le board dei giocatori e salva la partita con avversario IA.
+     *
+     * @param player1Id Identificativo dell’utente che crea la partita.
+     * @param gridSize Dimensione della griglia di gioco.
+     * @param shipConfig Configurazione delle navi da posizionare sulle board.
+     * @returns Partita PvE creata.
+     * @throws Errore applicativo se la validazione fallisce o la transazione non viene completata.
+     */
     async create(player1Id: string, gridSize: number, shipConfig: ShipConfiguration[]) {
-        const { player1, player1Board, player2Board, COST } = await this.prepareGameCreation(player1Id, gridSize, shipConfig);
-
         const transaction = await db.sequelize.transaction();
-        try {
-            player1.tokenBalance -= COST;
-            await player1.save({ transaction });
 
-            const game = await this.gameRepository.createGame({
-                type: GameType.PVE,
-                player1Id,
-                player2Id: null,
-                status: GameStatus.ACTIVE,
-                gameState: {
-                    configuration: { gridSize, shipTypes: shipConfig },
-                    player1Board, 
-                    player2Board,
-                    currentTurn: player1Id,
-                    history: []
-                }
-            }, transaction);
+        try {
+            const { player1, player1Board, player2Board, COST } =
+                await this.prepareGameCreation(player1Id, gridSize, shipConfig, transaction);
+
+            player1.tokenBalance -= COST;
+            await this.userRepository.saveUserChanges(player1, transaction);
+
+            const game = await this.gameRepository.createGame(
+                {
+                    type: GameType.PVE,
+                    player1Id,
+                    player2Id: null,
+                    status: GameStatus.ACTIVE,
+                    gameState: {
+                        configuration: { gridSize, shipTypes: shipConfig },
+                        player1Board,
+                        player2Board,
+                        currentTurn: player1Id,
+                        history: []
+                    }
+                },
+                transaction
+            );
 
             await transaction.commit();
             return game;
-        } catch (e) { 
-            await transaction.rollback(); 
-            throw e; 
+        } catch (e: any) {
+            await transaction.rollback();
+
+            if (e.toJSON) throw e;
+
+            throw ErrorFactory.getError(
+                'DATABASE_ERROR',
+                `Transazione fallita: ${e.message}`
+            );
         }
     }
 
     /**
      * @method processMove
-     * @description Elabora il turno di gioco in modalità PvE (Player vs Environment).
-     * Gestisce l'intera pipeline di esecuzione: validazione dei vincoli di stato,
-     * detrazione del costo dell'operazione, calcolo dell'impatto sulla plancia bersaglio,
-     * generazione della risposta deterministica dell'IA e persistenza dei dati.
-     * * @param {string} gameId - Identificatore univoco della partita.
-     * @param {string} userId - Identificatore dell'utente che effettua la mossa.
-     * @param {number} x - Coordinata orizzontale del bersaglio.
-     * @param {number} y - Coordinata verticale del bersaglio.
-     * @returns {Promise<Object>} Esito dell'operazione e stato aggiornato della partita.
-     * @throws {HttpError} In caso di validazione fallita o fondi insufficienti.
+     * @description Elabora una mossa dell’utente in una partita PvE attiva.
+     * Verifica autorizzazione, turno corrente e coordinate, applica l’attacco dell’utente,
+     * genera la risposta dell’IA quando necessario, aggiorna storico, stato partita,
+     * saldo token e punteggio del vincitore.
+     *
+     * @param gameId Identificativo della partita.
+     * @param userId Identificativo dell’utente che effettua la mossa.
+     * @param x Coordinata orizzontale della mossa.
+     * @param y Coordinata verticale della mossa.
+     * @returns Esito della mossa dell’utente, eventuale mossa IA, stato corrente e vincitore.
+     * @throws Errore applicativo se la partita non esiste, non è attiva, l’utente non è autorizzato,
+     * le coordinate non sono valide o la transazione fallisce.
      */
     async processMove(gameId: string, userId: string, x: number, y: number) {
-        // 1. VALIDAZIONE DELLO STATO DI DOMINIO E DEI VINCOLI
-        const game = await this.gameRepository.getById(gameId);
-        
-        if (!game) {
-            throw ErrorFactory.getError('NOT_FOUND', 'Partita non trovata.');
-        }
+        const transaction = await db.sequelize.transaction();
 
-        // Verifica l'idoneità della macchina a stati per elaborare nuove transazioni
-        if (game.status !== GameStatus.ACTIVE) {
-            throw ErrorFactory.getError('BAD_REQUEST', 'La partita non è più attiva.');
-        }
+        try {
+            const game = await this.gameRepository.getById(gameId, transaction, true);
 
-        const state = game.gameState as GameState;
-        
-        // Validazione dei permessi di sequenzialità (Turnazione)
-        if (state.currentTurn !== userId) {
-            throw ErrorFactory.getError('FORBIDDEN', 'Non è il turno dell\'utente corrente.');
-        }
+            if (!game) {
+                throw ErrorFactory.getError('NOT_FOUND', 'Partita non trovata.');
+            }
 
-        const gridSize = state.configuration.gridSize;
-        // La griglia va da 0 a gridSize - 1. 
-        // Esempio: se gridSize è 22, le coordinate valide vanno da 0 a 21.
-        if (x < 0 || x >= gridSize || y < 0 || y >= gridSize) {
-            throw ErrorFactory.getError(
-                'BAD_REQUEST', 
-                `Coordinate fuori mappa! Valori ammessi: da 0 a ${gridSize - 1}.`
+            if (game.status !== GameStatus.ACTIVE) {
+                throw ErrorFactory.getError(
+                    'BAD_REQUEST',
+                    'La partita non è più attiva.'
+                );
+            }
+
+            if (game.player1Id !== userId) {
+                throw ErrorFactory.getError(
+                    'FORBIDDEN',
+                    'Non sei un partecipante di questa partita.'
+                );
+            }
+
+            const state = game.gameState as GameState;
+
+            if (state.currentTurn !== userId) {
+                throw ErrorFactory.getError(
+                    'FORBIDDEN',
+                    'Non è il turno dell\'utente corrente.'
+                );
+            }
+
+            const gridSize = state.configuration.gridSize;
+            this.validateCoordinates(x, y, gridSize);
+
+            const alreadyShot = state.player2Board.shotsReceived.some(
+                shot => shot.x === x && shot.y === y
             );
-        }
-        
 
-        // 2. VALIDAZIONE ECONOMICA E GESTIONE DEL WALLET (TOKEN)
-        const user = await this.userRepository.getById(userId);
-        
-        if (!user) {
-            throw ErrorFactory.getError('NOT_FOUND', 'Utente non trovato nel sistema.');
-        }
+            if (alreadyShot) {
+                throw ErrorFactory.getError(
+                    'BAD_REQUEST',
+                    'Hai già sparato in queste coordinate.'
+                );
+            }
 
-        const MOVE_COST = 0.025; // Costante del costo unitario della transazione
+            const user = await this.userRepository.getUserById(userId, transaction, true);
 
-        // 3. ESECUZIONE LOGICA DI GIOCO: ATTACCO DELL'UTENTE
-        // Delega al GameEngine il calcolo dell'impatto spaziale sulla plancia avversaria
-        const userAttack = GameEngine.applyMove(state.player2Board, { x, y });
-        state.player2Board = userAttack.updatedBoard;
-        
-        // Registrazione dell'evento nell'Audit Log della partita
-        state.history.push({ 
-            playerId: userId, 
-            x, 
-            y, 
-            result: userAttack.result, 
-            timestamp: new Date() 
-        });
+            if (!user) {
+                throw ErrorFactory.getError(
+                    'NOT_FOUND',
+                    'Utente non trovato nel sistema.'
+                );
+            }
 
-        // 4. VALUTAZIONE CONDIZIONE DI VITTORIA UTENTE & RISPOSTA IA
-        if (GameEngine.checkVictory(state.player2Board)) {
-            // Transizione di stato: Fine partita con vittoria dell'Utente
-            game.status = GameStatus.FINISHED;
-            game.winnerId = userId;
-            user.points += 1;
-        } else {
-            // Generazione procedurale della contromossa IA ottimizzata (evita collisioni su colpi pregressi)
-            const iaTarget = GameEngine.generateIAMove(state.configuration.gridSize, state.player1Board.shotsReceived);
-            const iaAttack = GameEngine.applyMove(state.player1Board, iaTarget);
-            
-            state.player1Board = iaAttack.updatedBoard;
-            
-            state.history.push({ 
-                playerId: 'IA', 
-                x: iaTarget.x, 
-                y: iaTarget.y, 
-                result: iaAttack.result, 
-                timestamp: new Date() 
+            const userAttack = GameEngine.applyMove(state.player2Board, { x, y });
+            state.player2Board = userAttack.updatedBoard;
+
+            state.history.push({
+                playerId: userId,
+                x,
+                y,
+                result: userAttack.result,
+                timestamp: new Date()
             });
 
-            // Valutazione condizione di vittoria asincrona (IA vince nel turno in corso)
-            if (GameEngine.checkVictory(state.player1Board)) {
+            if (GameEngine.checkVictory(state.player2Board)) {
                 game.status = GameStatus.FINISHED;
-                game.winnerId = null; // Il valore null definisce sistematicamente la vittoria dell'Entità IA
+                game.winnerId = userId;
+                user.points += 1;
+            } else {
+                const iaTarget = GameEngine.generateIAMove(
+                    state.configuration.gridSize,
+                    state.player1Board.shotsReceived
+                );
+
+                const iaAttack = GameEngine.applyMove(state.player1Board, iaTarget);
+
+                state.player1Board = iaAttack.updatedBoard;
+
+                state.history.push({
+                    playerId: 'IA',
+                    x: iaTarget.x,
+                    y: iaTarget.y,
+                    result: iaAttack.result,
+                    timestamp: new Date()
+                });
+
+                if (GameEngine.checkVictory(state.player1Board)) {
+                    game.status = GameStatus.FINISHED;
+                    game.winnerId = null;
+                }
             }
+
+            const iaMove = state.history[state.history.length - 1].playerId === 'IA'
+                ? state.history[state.history.length - 1]
+                : null;
+
+            user.tokenBalance -= MOVE_COST;
+            await this.userRepository.saveUserChanges(user, transaction);
+
+            game.gameState = state;
+            game.changed('gameState', true);
+
+            await this.gameRepository.updateGame(game, transaction);
+
+            await transaction.commit();
+
+            return {
+                userMove: userAttack.result,
+                iaMove,
+                currentStatus: game.status,
+                winner: game.winnerId
+            };
+        } catch (e: any) {
+            await transaction.rollback();
+
+            if (e.toJSON) throw e;
+
+            throw ErrorFactory.getError(
+                'DATABASE_ERROR',
+                `Transazione fallita durante l'elaborazione della mossa PvE: ${e.message}`
+            );
         }
-
-        // 5. PERSISTENZA E CONSOLIDAMENTO DATI (DB UPDATE)
-        // Addebita il costo transazionale e persiste il saldo
-        user.tokenBalance -= MOVE_COST;
-        await user.save();
-        // Sincronizzazione dell'oggetto in memoria col modello ORM
-        game.gameState = state;
-        // Istruzione esplicita a Sequelize per tracciare la mutazione interna del tipo JSONB
-        game.changed('gameState', true);
-        await this.gameRepository.updateGame(game);
-
-        // 6. FORMATTAZIONE PAYLOAD DI RISPOSTA
-        return {
-            userMove: userAttack.result,
-            // Estrazione dell'ultimo record storico se appartenente all'IA (Safety check)
-            iaMove: state.history[state.history.length - 1].playerId === 'IA' 
-                ? state.history[state.history.length - 1] 
-                : null,
-            currentStatus: game.status,
-            winner: game.winnerId
-        };
     }
 }

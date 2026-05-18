@@ -1,0 +1,34 @@
+sequenceDiagram
+    participant Client
+    participant Route as UserRoutes
+    participant Controller as UserController
+    participant Service as UserService
+    participant Repository as UserRepository
+    participant DAO as UserDAO
+    participant ModelDB as User Model / Users table
+    participant ErrorHandler
+
+    Client->>Route: GET /api/users/profile/:id
+    Route->>Controller: getProfile(req, res, next)
+
+    alt id mancante
+        Controller-->>ErrorHandler: BAD_REQUEST
+        ErrorHandler-->>Client: 400 JSON error
+    else id presente
+        Controller->>Service: getProfile(id)
+        Service->>Repository: getUserById(id)
+        Repository->>DAO: fetchSingle(id)
+        DAO->>ModelDB: User.findByPk(id)
+        ModelDB-->>DAO: User | null
+        DAO-->>Repository: User | null
+        Repository-->>Service: User | null
+
+        alt profilo non trovato
+            Service-->>ErrorHandler: NOT_FOUND
+            ErrorHandler-->>Client: 404 JSON error
+        else profilo trovato
+            Service->>Service: toUserProfileDTO(user)
+            Service-->>Controller: DTO senza password
+            Controller-->>Client: 200 JSON profile
+        end
+    end

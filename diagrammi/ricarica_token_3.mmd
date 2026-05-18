@@ -1,0 +1,56 @@
+sequenceDiagram
+    participant Client
+    participant Route as UserRoutes
+    participant Auth as authenticateJWT
+    participant Admin as requireAdmin
+    participant Controller as UserController
+    participant Service as UserService
+    participant Repository as UserRepository
+    participant DAO as UserDAO
+    participant ModelDB as User Model / Users table
+    participant ErrorHandler
+
+    Client->>Route: PATCH /api/users/balance
+    Route->>Auth: authenticateJWT(req, res, next)
+
+    alt token mancante o non valido
+        Auth-->>ErrorHandler: UNAUTHORIZED
+        ErrorHandler-->>Client: 401 JSON error
+    else token valido
+        Auth-->>Route: req.user = decoded JWT
+        Route->>Admin: requireAdmin(req, res, next)
+
+        alt utente non ADMIN
+            Admin-->>ErrorHandler: FORBIDDEN
+            ErrorHandler-->>Client: 403 JSON error
+        else utente ADMIN
+            Admin-->>Route: ok
+            Route->>Controller: recharge(req, res, next)
+
+            alt email mancante o amount non valido
+                Controller-->>ErrorHandler: BAD_REQUEST
+                ErrorHandler-->>Client: 400 JSON error
+            else input valido
+                Controller->>Service: rechargeTokens(email, amount)
+                Service->>Repository: getUserByEmail(email)
+                Repository->>DAO: findByEmail(email)
+                DAO->>ModelDB: User.findOne({ where: email })
+                ModelDB-->>DAO: User | null
+                DAO-->>Repository: User | null
+                Repository-->>Service: User | null
+
+                alt utente da ricaricare non trovato
+                    Service-->>ErrorHandler: NOT_FOUND
+                    ErrorHandler-->>Client: 404 JSON error
+                else utente trovato
+                    Service->>Service: user.tokenBalance += amount
+                    Service->>Repository: saveUserChanges(user)
+                    Repository->>ModelDB: user.save()
+                    ModelDB-->>Repository: User aggiornato
+                    Repository-->>Service: User aggiornato
+                    Service-->>Controller: { message, email, newTokenBalance }
+                    Controller-->>Client: 200 JSON result
+                end
+            end
+        end
+    end

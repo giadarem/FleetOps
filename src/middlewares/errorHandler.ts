@@ -4,11 +4,14 @@ import { IAppError, ErrorFactory } from '../patterns/ErrorFactory';
 /**
  * @function errorHandlerMiddleware
  * @description Middleware globale per la gestione centralizzata degli errori in Express.
- * Intercetta gli errori e li restituisce al client sotto forma di stringa JSON.
- * * @param {any} err - L'errore catturato (può essere un IAppError o un'eccezione nativa).
- * @param {Request} req - L'oggetto richiesta Express.
- * @param {Response} res - L'oggetto risposta Express.
- * @param {NextFunction} next - Funzione per passare il controllo al middleware successivo.
+ * Intercetta gli errori generati dall’applicazione, normalizza quelli non già formattati
+ * tramite ErrorFactory e restituisce al client una risposta JSON coerente.
+ *
+ * @param err Errore catturato durante la gestione della richiesta.
+ * @param req Oggetto richiesta Express.
+ * @param res Oggetto risposta Express utilizzato per inviare l’errore al client.
+ * @param next Funzione Express per passare il controllo al middleware successivo.
+ * @returns void
  */
 export const errorHandlerMiddleware = (
     err: any, 
@@ -29,5 +32,5 @@ export const errorHandlerMiddleware = (
     }
 
     // Risponde al client con il corretto Status Code e la stringa in formato JSON
-    res.status(appError.statusCode).type('application/json').send(appError.toJSON());
+    res.status(appError.status).type('application/json').send(appError.toJSON());
 };

@@ -8,41 +8,44 @@ import { GameType } from '../enum/gameType';
 
 /**
  * @interface GameAttributes
- * @description Definisce rigorosamente le proprietà dell'entità Game per TypeScript.
- * Garantisce type-safety durante le operazioni di CRUD e l'accesso ai dati.
+ * @description Definisce le proprietà dell’entità Game utilizzate dal modello Sequelize.
+ * Garantisce type-safety nelle operazioni di accesso, creazione e aggiornamento
+ * dei dati relativi alle partite.
  */
 interface GameAttributes {
     /** Identificativo univoco della partita */
     id: string;
-    /** UUID del giocatore che ha creato la partita (sempre presente) */
+    /** UUID del giocatore che ha creato la partita */
     player1Id: string;
-    /** UUID dell'avversario. Può essere null nel caso di partita contro l'IA */
+    /** UUID dell’avversario, nullo nelle partite contro IA */
     player2Id: string | null; 
-    /** Stato corrente del ciclo di vita della partita  */
+    /** Stato corrente del ciclo di vita della partita */
     status: GameStatus; 
-    /** UUID del giocatore vincitore. Null se la partita è in corso o terminata in pareggio/abbandono */
+    /** UUID del giocatore vincitore, nullo finché la partita non ha un vincitore */
     winnerId: string | null;
     /**
-     * Struttura complessa (salvata come JSONB in PostgreSQL) che incapsula 
-     * l'intero stato del gioco (configurazione, plance, storico mosse).
-     * Questa scelta architetturale evita complessi mapping relazionali e garantisce
-     * prestazioni ottimali in lettura/scrittura dell'intero contesto di gioco.
+     * Stato completo della partita salvato come struttura JSONB.
+     * Contiene le informazioni necessarie alla ricostruzione del contesto di gioco,
+     * incluse configurazioni, griglie e storico delle mosse.
      */
     gameState: GameState;
+    /** Tipologia della partita, PvP o PvE */
     type: GameType;
 }
 
 /**
  * @interface GameCreationAttributes
- * @description Estende GameAttributes rendendo opzionali i campi generati automaticamente (id)
- * o con valori di default (status) durante la fase di creazione (INSERT).
+ * @description Definisce gli attributi richiesti in fase di creazione di una partita.
+ * Estende GameAttributes rendendo opzionali i campi generati automaticamente
+ * o valorizzati tramite default dal modello.
  */
 interface GameCreationAttributes extends Optional<GameAttributes, 'id' | 'status' | 'winnerId'> {}
 
 /**
  * @class Game
- * @description Modello ORM Sequelize per l'entità "Partita".
- * Mappa la tabella fisica 'Games' sul database relazionale.
+ * @description Modello ORM Sequelize dell’entità Partita.
+ * Si colloca nel livello Model dell’architettura e mappa la tabella fisica Games,
+ * definendo attributi, tipi e relazioni principali con gli utenti coinvolti.
  */
 class Game extends Model<GameAttributes, GameCreationAttributes> implements GameAttributes {
     public id!: string;
@@ -53,12 +56,17 @@ class Game extends Model<GameAttributes, GameCreationAttributes> implements Game
     public winnerId!: string | null;
     public gameState!: GameState;
 
-    // Timestamps gestiti automaticamente da Sequelize per auditing 
+    /** Timestamp di creazione gestito automaticamente da Sequelize */
     public readonly createdAt!: Date;
+    /** Timestamp di aggiornamento gestito automaticamente da Sequelize */
     public readonly updatedAt!: Date;
 }
 
-// Inizializzazione dello schema e mapping con il database 
+/**
+ * @description Inizializza il mapping Sequelize tra il modello Game e la tabella Games.
+ * Definisce colonne, vincoli, valori di default e configurazioni ORM necessarie
+ * alla persistenza delle partite.
+ */
 Game.init(
     {
         id: {
@@ -106,15 +114,16 @@ Game.init(
     }
 );
 
-// --- Definizione delle Associazioni (Relazioni 1:N) --
-// Un utente (User) può partecipare a molte partite (Game) come Player 1
+/**
+ * @description Definisce le associazioni Sequelize tra User e Game.
+ * Le relazioni permettono di collegare una partita ai giocatori coinvolti
+ * e all’eventuale vincitore, abilitando l’eager-loading tramite alias dedicati.
+ */
 User.hasMany(Game, { foreignKey: 'player1Id', as: 'gamesAsPlayer1' });
-// Un utente (User) può partecipare a molte partite (Game) come Player 2
 User.hasMany(Game, { foreignKey: 'player2Id', as: 'gamesAsPlayer2' });
 
-// Ogni partita appartiene sempre a un Player 1 (User)
-Game.belongsTo(User, { foreignKey: 'player1Id', as: 'player1' });
-// Ogni partita può appartenere a un Player 2 (User)
-Game.belongsTo(User, { foreignKey: 'player2Id', as: 'player2' });
+Game.belongsTo(User, { foreignKey: 'player1Id', as: 'Player1' });
+Game.belongsTo(User, { foreignKey: 'player2Id', as: 'Player2' });
+Game.belongsTo(User, { foreignKey: 'winnerId', as: 'Winner' }); // Relazione aggiunta per evitare crash
 
 export default Game;

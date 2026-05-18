@@ -4,18 +4,30 @@ import { UserRole } from '../enum/userRole';
 
 /**
  * @class User
- * @description Modello Sequelize aggiornato per FleetOps.
- * Allineato con lo schema SQL (UUID, tokenBalance, points).
+ * @description Modello ORM Sequelize dell’entità Utente.
+ * Si colloca nel livello Model dell’architettura e mappa la tabella Users,
+ * definendo credenziali, ruolo, saldo token e punteggio dell’utente.
  */
 class User extends Model {
+  /** Identificativo univoco dell’utente */
   public id!: string; 
+  /** Email utilizzata per autenticazione e identificazione dell’utente */
   public email!: string;
+  /** Password dell’utente, gestita secondo la logica di autenticazione applicativa */
   public password!: string; 
+  /** Ruolo applicativo dell’utente */
   public role!: UserRole;
+  /** Saldo token disponibile per le operazioni di gioco */
   public tokenBalance!: number; 
+  /** Punteggio accumulato dall’utente nelle partite */
   public points!: number;       
 }
 
+/**
+ * @description Inizializza il mapping Sequelize tra il modello User e la tabella Users.
+ * Definisce colonne, vincoli, validazioni, valori di default e configurazioni ORM
+ * necessarie alla persistenza degli utenti.
+ */
 User.init(
   {
     id: {

@@ -1,0 +1,27 @@
+sequenceDiagram
+    participant Client
+    participant Route as UserRoutes
+    participant Controller as UserController
+    participant Service as UserService
+    participant Repository as UserRepository
+    participant DAO as UserDAO
+    participant ModelDB as User Model / Users table
+    participant ErrorHandler
+
+    Client->>Route: GET /api/users/leaderboard
+    Route->>Controller: getLeaderboard(req, res, next)
+
+    Controller->>Service: getLeaderboard()
+    Service->>Repository: getGlobalLeaderboard(10)
+    Repository->>DAO: getTopByPoints(10)
+    DAO->>ModelDB: User.findAll(order by points DESC, limit 10)
+    ModelDB-->>DAO: lista utenti
+    DAO-->>Repository: lista utenti
+    Repository-->>Service: lista utenti
+    Service-->>Controller: leaderboard
+    Controller-->>Client: 200 JSON leaderboard
+
+    alt errore database
+        DAO-->>ErrorHandler: DATABASE_ERROR
+        ErrorHandler-->>Client: 500 JSON error
+    end

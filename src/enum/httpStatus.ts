@@ -1,6 +1,7 @@
 /**
  * @enum HttpStatus
- * @description Centralizza i codici di stato HTTP per evitare errori di battitura.
+ * @description Enumerazione che centralizza i codici di stato HTTP utilizzati dall’applicazione.
+ * Favorisce coerenza nelle risposte e riduce il rischio di errori nell’uso dei codici numerici.
  */
 export enum HttpStatus {
     OK = 200,
@@ -9,5 +10,6 @@ export enum HttpStatus {
     UNAUTHORIZED = 401,
     FORBIDDEN = 403,
     NOT_FOUND = 404,
-    INTERNAL_SERVER_ERROR = 500
+    INTERNAL_SERVER_ERROR = 500,
+    SERVICE_UNAVAILABLE = 503
 }

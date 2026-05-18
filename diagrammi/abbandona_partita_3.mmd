@@ -1,0 +1,77 @@
+sequenceDiagram
+    participant Client
+    participant Route as GameRoutes
+    participant Auth as authenticateJWT
+    participant Controller as GameController
+    participant Service as BaseGameService via PvEGameService
+    participant GameRepo as GameRepository
+    participant UserRepo as UserRepository
+    participant GameDAO as GameDAO
+    participant UserDAO as UserDAO
+    participant GameDB as Game Model / Games table
+    participant UserDB as User Model / Users table
+    participant Sequelize as Sequelize Transaction
+    participant ErrorHandler
+
+    Client->>Route: PATCH /api/games/:id/abandon
+    Route->>Auth: authenticateJWT
+
+    alt JWT mancante o non valido
+        Auth-->>ErrorHandler: UNAUTHORIZED
+        ErrorHandler-->>Client: 401 JSON error
+    else JWT valido
+        Auth-->>Route: req.user.id
+        Route->>Controller: abandonGame(req, res, next)
+        Controller->>Service: abandonGame(gameId, userId)
+
+        Service->>Sequelize: begin transaction
+        Service->>GameRepo: getById(gameId, transaction, lock)
+        GameRepo->>GameDAO: fetchSingle(gameId, transaction, lock)
+        GameDAO->>GameDB: Game.findByPk(gameId, transaction, lock)
+        GameDB-->>GameDAO: Game | null
+        GameDAO-->>GameRepo: Game | null
+        GameRepo-->>Service: Game | null
+
+        alt partita non trovata
+            Service->>Sequelize: rollback
+            Service-->>ErrorHandler: NOT_FOUND
+            ErrorHandler-->>Client: 404 JSON error
+        else partita non ACTIVE
+            Service->>Sequelize: rollback
+            Service-->>ErrorHandler: BAD_REQUEST
+            ErrorHandler-->>Client: 400 JSON error
+        else utente non partecipante
+            Service->>Sequelize: rollback
+            Service-->>ErrorHandler: FORBIDDEN
+            ErrorHandler-->>Client: 403 JSON error
+        else abbandono valido
+            Service->>Service: game.status = ABANDONED
+
+            alt partita PvE
+                Service->>Service: winnerId = null
+            else partita PvP
+                Service->>Service: winnerId = altro giocatore
+                Service->>UserRepo: getUserById(winnerId, transaction, lock)
+                UserRepo->>UserDAO: fetchSingle(winnerId, transaction, lock)
+                UserDAO->>UserDB: User.findByPk(winnerId, transaction, lock)
+                UserDB-->>UserDAO: winner
+                UserDAO-->>UserRepo: winner
+                UserRepo-->>Service: winner
+
+                Service->>Service: winner.points += 0.5
+                Service->>UserRepo: saveUserChanges(winner, transaction)
+                UserRepo->>UserDB: winner.save({ transaction })
+            end
+
+            Service->>GameRepo: updateGame(game, transaction)
+            GameRepo->>GameDAO: updateStateWithTransaction(game, transaction)
+            GameDAO->>GameDB: game.save({ transaction })
+            GameDB-->>GameDAO: updatedGame
+            GameDAO-->>GameRepo: updatedGame
+            GameRepo-->>Service: updatedGame
+
+            Service->>Sequelize: commit
+            Service-->>Controller: updatedGame
+            Controller-->>Client: 200 JSON { message, gameId, status, winnerId }
+        end
+    end

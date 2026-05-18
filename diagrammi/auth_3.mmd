@@ -1,0 +1,44 @@
+sequenceDiagram
+    participant Client
+    participant Route as AuthRoutes
+    participant Controller as AuthController
+    participant Service as AuthService
+    participant Repository as UserRepository
+    participant DAO as UserDAO
+    participant ModelDB as User Model / Users table
+    participant JWT as JWTUtils
+    participant ErrorHandler
+
+    Client->>Route: POST /api/auth/login
+    Route->>Controller: login(req, res, next)
+
+    Controller->>Service: login(email, password)
+
+    alt email o password mancanti
+        Service-->>ErrorHandler: BAD_REQUEST
+        ErrorHandler-->>Client: 400 JSON error
+    else credenziali presenti
+        Service->>Repository: getUserByEmail(email)
+        Repository->>DAO: findByEmail(email)
+        DAO->>ModelDB: User.findOne({ where: email })
+        ModelDB-->>DAO: User | null
+        DAO-->>Repository: User | null
+        Repository-->>Service: User | null
+
+        alt utente non trovato
+            Service-->>ErrorHandler: UNAUTHORIZED
+            ErrorHandler-->>Client: 401 JSON error
+        else utente trovato
+            Service->>Service: bcrypt.compare(password, user.password)
+
+            alt password non valida
+                Service-->>ErrorHandler: UNAUTHORIZED
+                ErrorHandler-->>Client: 401 JSON error
+            else password valida
+                Service->>JWT: generateToken({ id, role })
+                JWT-->>Service: JWT token
+                Service-->>Controller: { token, user }
+                Controller-->>Client: 200 JSON { token, user }
+            end
+        end
+    end

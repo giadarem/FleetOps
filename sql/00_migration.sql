@@ -5,7 +5,6 @@
  * Architettura: Ottimizzata con JSONB per massime prestazioni di lettura/scrittura dello stato.
  */
 
--
 -- ======== CLEANUP VECCHIO SCHEMA ==============
 DROP TABLE IF EXISTS "Moves" CASCADE;
 DROP TABLE IF EXISTS "PlayerBoards" CASCADE;
@@ -36,7 +35,7 @@ CREATE TABLE "Users" (
     "password" VARCHAR(255) NOT NULL,
     "role" "enum_Users_role" NOT NULL DEFAULT 'USER',
     
-    -- tokenBalance supporta decimali per gestire costi precisi (es: 0.025 per mossa).
+    -- tokenBalance supporta decimali per gestire costi precisi
     "tokenBalance" DOUBLE PRECISION NOT NULL DEFAULT 0.0,
     
     -- Punteggio accumulato per la Leaderboard (1 pt vittoria, 0.5 pt abbandono).
@@ -50,7 +49,6 @@ CREATE TABLE "Users" (
 CREATE TABLE "Games" (
     "id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     
-    -- NUOVO: Tipologia di partita (PVP o PVE)
     "type" "enum_Games_type" NOT NULL DEFAULT 'PVE',
     
     -- Chiavi esterne verso i giocatori. player2Id è NULL se la partita è contro l'IA (PvE).

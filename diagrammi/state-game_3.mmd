@@ -1,0 +1,67 @@
+sequenceDiagram
+    participant Client
+    participant Route as GameRoutes
+    participant Auth as authenticateJWT
+    participant Controller as GameController
+    participant Service as BaseGameService via PvEGameService
+    participant GameRepo as GameRepository
+    participant UserRepo as UserRepository
+    participant GameDAO as GameDAO
+    participant UserDAO as UserDAO
+    participant GameDB as Game Model / Games table
+    participant UserDB as User Model / Users table
+    participant ErrorHandler
+
+    Client->>Route: GET /api/games/:id/state-game
+    Route->>Auth: authenticateJWT
+
+    alt JWT mancante o non valido
+        Auth-->>ErrorHandler: UNAUTHORIZED
+        ErrorHandler-->>Client: 401 JSON error
+    else JWT valido
+        Auth-->>Route: req.user.id
+        Route->>Controller: getGameState(req, res, next)
+
+        Controller->>Service: getGameState(gameId, userId)
+        Service->>GameRepo: getById(gameId)
+        GameRepo->>GameDAO: fetchSingle(gameId)
+        GameDAO->>GameDB: Game.findByPk(gameId)
+        GameDB-->>GameDAO: Game | null
+        GameDAO-->>GameRepo: Game | null
+        GameRepo-->>Service: Game | null
+
+        alt partita non trovata
+            Service-->>ErrorHandler: NOT_FOUND
+            ErrorHandler-->>Client: 404 JSON error
+        else utente non partecipante
+            Service-->>ErrorHandler: FORBIDDEN
+            ErrorHandler-->>Client: 403 JSON error
+        else accesso consentito
+            Service->>Service: legge game.gameState
+
+            alt currentTurn è un utente
+                Service->>UserRepo: getUserById(currentTurn)
+                UserRepo->>UserDAO: fetchSingle(currentTurn)
+                UserDAO->>UserDB: User.findByPk(currentTurn)
+                UserDB-->>UserDAO: currentPlayer
+                UserDAO-->>UserRepo: currentPlayer
+                UserRepo-->>Service: currentPlayer.email
+            else currentTurn IA
+                Service->>Service: currentTurnEmail = "IA"
+            end
+
+            alt winnerId presente
+                Service->>UserRepo: getUserById(winnerId)
+                UserRepo->>UserDAO: fetchSingle(winnerId)
+                UserDAO->>UserDB: User.findByPk(winnerId)
+                UserDB-->>UserDAO: winner
+                UserDAO-->>UserRepo: winner
+                UserRepo-->>Service: winner.email
+            else winnerId null
+                Service->>Service: winnerEmail = null
+            end
+
+            Service-->>Controller: { gameId, type, status, currentTurnId, currentTurnEmail, winnerId, winnerEmail }
+            Controller-->>Client: 200 JSON gameState
+        end
+    end

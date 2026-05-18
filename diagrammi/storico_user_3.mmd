@@ -1,0 +1,41 @@
+sequenceDiagram
+    participant Client
+    participant Route as GameRoutes
+    participant Auth as authenticateJWT
+    participant Controller as GameController
+    participant Service as BaseGameService via PvEGameService
+    participant Repository as GameRepository
+    participant DAO as GameDAO
+    participant GameDB as Game Model / Games table
+    participant UserDB as User Model / Users table
+    participant ErrorHandler
+
+    Client->>Route: GET /api/games/my-history
+    Route->>Auth: authenticateJWT
+
+    alt JWT mancante o non valido
+        Auth-->>ErrorHandler: UNAUTHORIZED
+        ErrorHandler-->>Client: 401 JSON error
+    else JWT valido
+        Auth-->>Route: req.user.id
+        Route->>Controller: getUserGamesList(req, res, next)
+        Controller->>Service: getUserGamesList(userId)
+
+        Service->>Repository: getAllUserGamesWithEmails(userId)
+        Repository->>DAO: fetchUserGamesWithEmails(userId)
+        DAO->>GameDB: Game.findAll({ player1Id/player2Id, include Users })
+        GameDB->>UserDB: JOIN Player1, Player2, Winner
+        UserDB-->>GameDB: email partecipanti
+        GameDB-->>DAO: lista partite
+        DAO-->>Repository: lista partite
+        Repository-->>Service: lista partite
+
+        Service->>Service: map DTO storico partite
+        Service-->>Controller: games[]
+        Controller-->>Client: 200 JSON games[]
+    end
+
+    alt errore database
+        Repository-->>ErrorHandler: DATABASE_ERROR
+        ErrorHandler-->>Client: 500 JSON error
+    end

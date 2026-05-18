@@ -1,0 +1,185 @@
+sequenceDiagram
+    participant Client
+    participant Route as GameRoutes
+    participant Auth as authenticateJWT
+    participant Token as checkTokenBalance
+    participant Controller as GameController
+    participant PvP as PvPGameService
+    participant PvE as PvEGameService
+    participant Base as BaseGameService
+    participant UserRepo as UserRepository
+    participant GameRepo as GameRepository
+    participant UserDAO as UserDAO
+    participant GameDAO as GameDAO
+    participant UserDB as User Model / Users table
+    participant GameDB as Game Model / Games table
+    participant Engine as GameEngine
+    participant Sequelize as Sequelize Transaction
+    participant ErrorHandler
+
+    Client->>Route: POST /api/games/new-game
+    Route->>Auth: authenticateJWT
+
+    alt JWT mancante o non valido
+        Auth-->>ErrorHandler: UNAUTHORIZED
+        ErrorHandler-->>Client: 401 JSON error
+    else JWT valido
+        Auth-->>Route: req.user.id
+
+        Route->>Token: checkTokenBalance
+        Token->>UserRepo: getUserById(authenticatedUser.id)
+        UserRepo->>UserDAO: fetchSingle(id)
+        UserDAO->>UserDB: User.findByPk(id)
+        UserDB-->>UserDAO: User | null
+        UserDAO-->>UserRepo: User | null
+        UserRepo-->>Token: User | null
+
+        alt utente non trovato
+            Token-->>ErrorHandler: NOT_FOUND
+            ErrorHandler-->>Client: 404 JSON error
+        else tokenBalance < GAME_CREATION_COST
+            Token-->>ErrorHandler: UNAUTHORIZED
+            ErrorHandler-->>Client: 401 JSON error
+        else credito sufficiente
+            Token-->>Route: ok
+            Route->>Controller: createGame(req, res, next)
+
+            alt type = PVP
+                Controller->>PvP: create(userId, gridSize, shipConfig, opponentEmail)
+
+                alt opponentEmail mancante o formato non valido
+                    PvP-->>ErrorHandler: BAD_REQUEST
+                    ErrorHandler-->>Client: 400 JSON error
+                else input PvP valido
+                    PvP->>Sequelize: begin transaction
+
+                    PvP->>UserRepo: getUserByEmail(opponentEmail, transaction, lock)
+                    UserRepo->>UserDAO: findByEmail(email, transaction, lock)
+                    UserDAO->>UserDB: User.findOne({ where: email, transaction, lock })
+                    UserDB-->>UserDAO: opponent | null
+                    UserDAO-->>UserRepo: opponent | null
+                    UserRepo-->>PvP: opponent | null
+
+                    alt avversario non trovato
+                        PvP->>Sequelize: rollback
+                        PvP-->>ErrorHandler: NOT_FOUND
+                        ErrorHandler-->>Client: 404 JSON error
+                    else opponent.id == player1Id
+                        PvP->>Sequelize: rollback
+                        PvP-->>ErrorHandler: BAD_REQUEST
+                        ErrorHandler-->>Client: 400 JSON error
+                    else avversario valido
+                        PvP->>Base: prepareGameCreation(player1Id, gridSize, shipConfig, transaction)
+
+                        Base->>Base: validateGridSize + validateShipConfig
+                        Base->>UserRepo: getUserById(player1Id, transaction, lock)
+                        UserRepo->>UserDAO: fetchSingle(player1Id, transaction, lock)
+                        UserDAO->>UserDB: User.findByPk(player1Id, transaction, lock)
+                        UserDB-->>UserDAO: player1
+                        UserDAO-->>UserRepo: player1
+                        UserRepo-->>Base: player1
+
+                        Base->>GameRepo: getActiveGameByUserId(player1Id, transaction, lock)
+                        GameRepo->>GameDAO: findActiveByUserId(player1Id, transaction, lock)
+                        GameDAO->>GameDB: Game.findOne({ player1/player2, ACTIVE })
+                        GameDB-->>GameDAO: activeGame | null
+                        GameDAO-->>GameRepo: activeGame | null
+                        GameRepo-->>Base: activeGame | null
+
+                        alt player1 già in partita attiva
+                            PvP->>Sequelize: rollback
+                            PvP-->>ErrorHandler: BAD_REQUEST
+                            ErrorHandler-->>Client: 400 JSON error
+                        else player1 disponibile
+                            Base->>Engine: generateRandomBoard() player1
+                            Base->>Engine: generateRandomBoard() player2
+                            Base-->>PvP: player1, boards, COST
+
+                            PvP->>GameRepo: getActiveGameByUserId(opponent.id, transaction, lock)
+                            GameRepo->>GameDAO: findActiveByUserId(opponent.id, transaction, lock)
+                            GameDAO->>GameDB: Game.findOne({ opponent, ACTIVE })
+                            GameDB-->>GameDAO: opponentActiveGame | null
+                            GameDAO-->>GameRepo: opponentActiveGame | null
+                            GameRepo-->>PvP: opponentActiveGame | null
+
+                            alt avversario già in partita attiva
+                                PvP->>Sequelize: rollback
+                                PvP-->>ErrorHandler: BAD_REQUEST
+                                ErrorHandler-->>Client: 400 JSON error
+                            else avversario disponibile
+                                PvP->>PvP: player1.tokenBalance -= GAME_CREATION_COST
+                                PvP->>UserRepo: saveUserChanges(player1, transaction)
+                                UserRepo->>UserDB: player1.save({ transaction })
+
+                                PvP->>GameRepo: createGame(gameData, transaction)
+                                GameRepo->>GameDAO: createWithTransaction(gameData, transaction)
+                                GameDAO->>GameDB: Game.create(gameData, transaction)
+                                GameDB-->>GameDAO: Game creato
+                                GameDAO-->>GameRepo: Game creato
+                                GameRepo-->>PvP: Game creato
+
+                                PvP->>Sequelize: commit
+                                PvP-->>Controller: game
+                                Controller-->>Client: 201 JSON game
+                            end
+                        end
+                    end
+                end
+
+            else type = PVE
+                Controller->>PvE: create(userId, gridSize, shipConfig)
+
+                alt opponentEmail fornita per PvE
+                    Controller-->>ErrorHandler: BAD_REQUEST
+                    ErrorHandler-->>Client: 400 JSON error
+                else input PvE valido
+                    PvE->>Sequelize: begin transaction
+                    PvE->>Base: prepareGameCreation(player1Id, gridSize, shipConfig, transaction)
+
+                    Base->>Base: validateGridSize + validateShipConfig
+                    Base->>UserRepo: getUserById(player1Id, transaction, lock)
+                    UserRepo->>UserDAO: fetchSingle(player1Id, transaction, lock)
+                    UserDAO->>UserDB: User.findByPk(player1Id, transaction, lock)
+                    UserDB-->>UserDAO: player1
+                    UserDAO-->>UserRepo: player1
+                    UserRepo-->>Base: player1
+
+                    Base->>GameRepo: getActiveGameByUserId(player1Id, transaction, lock)
+                    GameRepo->>GameDAO: findActiveByUserId(player1Id, transaction, lock)
+                    GameDAO->>GameDB: Game.findOne({ player1/player2, ACTIVE })
+                    GameDB-->>GameDAO: activeGame | null
+                    GameDAO-->>GameRepo: activeGame | null
+                    GameRepo-->>Base: activeGame | null
+
+                    alt utente non trovato / token insufficienti / partita attiva
+                        PvE->>Sequelize: rollback
+                        PvE-->>ErrorHandler: errore dominio
+                        ErrorHandler-->>Client: JSON error
+                    else creazione consentita
+                        Base->>Engine: generateRandomBoard() player1
+                        Base->>Engine: generateRandomBoard() IA
+                        Base-->>PvE: player1, boards, COST
+
+                        PvE->>PvE: player1.tokenBalance -= GAME_CREATION_COST
+                        PvE->>UserRepo: saveUserChanges(player1, transaction)
+                        UserRepo->>UserDB: player1.save({ transaction })
+
+                        PvE->>GameRepo: createGame(gameData, transaction)
+                        GameRepo->>GameDAO: createWithTransaction(gameData, transaction)
+                        GameDAO->>GameDB: Game.create(gameData, transaction)
+                        GameDB-->>GameDAO: Game creato
+                        GameDAO-->>GameRepo: Game creato
+                        GameRepo-->>PvE: Game creato
+
+                        PvE->>Sequelize: commit
+                        PvE-->>Controller: game
+                        Controller-->>Client: 201 JSON game
+                    end
+                end
+
+            else type non valido
+                Controller-->>ErrorHandler: BAD_REQUEST
+                ErrorHandler-->>Client: 400 JSON error
+            end
+        end
+    end

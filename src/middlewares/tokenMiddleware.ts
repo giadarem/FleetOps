@@ -1,27 +1,45 @@
 import { Request, Response, NextFunction } from 'express';
 import { UserRepository } from '../repository/UserRepository';
+import { ErrorFactory } from '../patterns/ErrorFactory';
+import { GAME_CREATION_COST } from '../config/gameCosts';
 
 const userRepository = new UserRepository();
 
+/**
+ * @function checkTokenBalance
+ * @description Middleware responsabile del controllo del credito token dell’utente autenticato.
+ * Verifica che l’utente disponga del saldo minimo richiesto per creare una nuova partita,
+ * senza applicare blocchi alle partite già iniziate.
+ *
+ * @param req Richiesta HTTP contenente i dati dell’utente autenticato.
+ * @param res Risposta HTTP gestita da Express.
+ * @param next Funzione Express per proseguire la catena dei middleware o delegare errori.
+ * @returns Promise risolta al completamento del controllo sul saldo token.
+ * @throws Errore applicativo se l’utente non è autenticato, non esiste o non ha token sufficienti.
+ */
 export const checkTokenBalance = async (req: Request, res: Response, next: NextFunction) => {
     try {
-        const userId = (req as any).user.id;
-        const user = await userRepository.getById(userId);
+        const authenticatedUser = (req as any).user;
+
+        if (!authenticatedUser || !authenticatedUser.id) {
+            throw ErrorFactory.getError('UNAUTHORIZED', 'Utente non autenticato o token non valido.');
+        }
+
+        const user = await userRepository.getUserById(authenticatedUser.id);
         
         if (!user) {
-            return res.status(404).json({ error: 'USER_NOT_FOUND' });
+            throw ErrorFactory.getError('NOT_FOUND', 'Utente non trovato.');
         }
 
-        // Se l'utente ha 0 o meno token, blocchiamo con 401
-        if (user.tokenBalance <= 0) {
-            return res.status(401).json({ 
-                error: 'UNAUTHORIZED', 
-                message: 'Token esauriti. Impossibile procedere.' 
-            });
+        if (user.tokenBalance < GAME_CREATION_COST) {
+            throw ErrorFactory.getError(
+                'UNAUTHORIZED',
+                'Token insufficienti. Servono almeno 0.2 token per creare una nuova partita.'
+            );
         }
 
-        next(); // Se ha credito, prosegue
+        next();
     } catch (error) {
-        res.status(500).json({ error: 'TOKEN_CHECK_ERROR' });
+        next(error);
     }
 };

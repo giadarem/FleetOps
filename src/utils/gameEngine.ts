@@ -6,12 +6,23 @@ import { MoveResult } from '../enum/moveResult';
 /**
  * @class GameEngine
  * @description Core engine di dominio per la Battaglia Navale.
+ * Centralizza la logica pura di gioco, inclusa la generazione delle plance,
+ * il posizionamento delle navi, il calcolo degli attacchi, la verifica della vittoria
+ * e la generazione delle mosse dell’IA.
  */
 export class GameEngine {
     
     /**
      * @method generateRandomBoard
-     * @description Genera lo schieramento iniziale di una singola plancia.
+     * @static
+     * @description Genera una plancia iniziale posizionando casualmente le navi configurate.
+     * Verifica che ogni nave sia interna alla griglia e non entri in collisione
+     * con le navi già posizionate.
+     *
+     * @param gridSize Dimensione della griglia di gioco.
+     * @param configurations Configurazione delle navi da posizionare.
+     * @returns Plancia inizializzata con navi posizionate e storico colpi vuoto.
+     * @throws Errore applicativo se una nave non può essere allocata dopo il numero massimo di tentativi.
      */
     public static generateRandomBoard(gridSize: number, configurations: ShipConfiguration[]): Board {
         const placedShips: Ship[] = [];
@@ -56,6 +67,19 @@ export class GameEngine {
         };
     }
 
+    /**
+     * @method projectShipCoordinates
+     * @private
+     * @static
+     * @description Calcola le coordinate occupate da una nave a partire da posizione iniziale,
+     * dimensione e orientamento.
+     *
+     * @param startX Coordinata orizzontale iniziale della nave.
+     * @param startY Coordinata verticale iniziale della nave.
+     * @param size Dimensione della nave.
+     * @param isVertical Indica se la nave deve essere proiettata verticalmente.
+     * @returns Lista delle coordinate occupate dalla nave.
+     */
     private static projectShipCoordinates(startX: number, startY: number, size: number, isVertical: boolean): Coordinate[] {
         const coords: Coordinate[] = [];
         for (let i = 0; i < size; i++) {
@@ -67,10 +91,31 @@ export class GameEngine {
         return coords;
     }
 
+    /**
+     * @method isWithinBounds
+     * @private
+     * @static
+     * @description Verifica che tutte le coordinate indicate siano comprese nei limiti della griglia.
+     *
+     * @param coords Coordinate da verificare.
+     * @param gridSize Dimensione della griglia di gioco.
+     * @returns True se tutte le coordinate sono valide, false altrimenti.
+     */
     private static isWithinBounds(coords: Coordinate[], gridSize: number): boolean {
         return coords.every(c => c.x >= 0 && c.x < gridSize && c.y >= 0 && c.y < gridSize);
     }
 
+    /**
+     * @method hasCollision
+     * @private
+     * @static
+     * @description Verifica se le nuove coordinate di una nave si sovrappongono
+     * a quelle delle navi già posizionate sulla plancia.
+     *
+     * @param newCoords Coordinate della nave da posizionare.
+     * @param existingShips Navi già presenti sulla plancia.
+     * @returns True se esiste una collisione, false altrimenti.
+     */
     private static hasCollision(newCoords: Coordinate[], existingShips: Ship[]): boolean {
         for (const ship of existingShips) {
             for (const existingCoord of ship.coordinates) {
@@ -84,7 +129,14 @@ export class GameEngine {
 
     /**
      * @method applyMove
-     * @description Calcola l'esito di un attacco (MISS, HIT, SUNK).
+     * @static
+     * @description Applica un attacco a una plancia e calcola l’esito della mossa.
+     * Registra il colpo ricevuto, aggiorna lo stato dei colpi sulle navi
+     * e determina se il risultato è acqua, colpito o affondato.
+     *
+     * @param board Plancia bersaglio su cui applicare la mossa.
+     * @param target Coordinate dell’attacco.
+     * @returns Esito della mossa e plancia aggiornata.
      */
     public static applyMove(board: Board, target: Coordinate): { result: MoveResult; updatedBoard: Board } {
         // Registra il colpo
@@ -111,6 +163,11 @@ export class GameEngine {
 
     /**
      * @method checkVictory
+     * @static
+     * @description Verifica se tutte le navi presenti su una plancia sono state affondate.
+     *
+     * @param board Plancia da controllare.
+     * @returns True se tutte le navi sono affondate, false altrimenti.
      */
     public static checkVictory(board: Board): boolean {
         return board.ships.every(ship => ship.isSunk);
@@ -118,8 +175,14 @@ export class GameEngine {
 
     /**
      * @method generateIAMove
-     * @description Genera coordinate valide per l'IA evitando duplicati.
-     * @fix Risolto errore di inizializzazione variabili e tipizzazione Coordinate.
+     * @static
+     * @description Genera una mossa casuale valida per l’IA.
+     * Evita coordinate già presenti nello storico dei colpi ricevuti,
+     * così da non ripetere attacchi sulla stessa cella.
+     *
+     * @param gridSize Dimensione della griglia di gioco.
+     * @param shotsReceived Coordinate già colpite in precedenza.
+     * @returns Coordinate valide per la prossima mossa dell’IA.
      */
     public static generateIAMove(gridSize: number, shotsReceived: Coordinate[]): Coordinate {
         let x: number = 0;

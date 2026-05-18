@@ -19,7 +19,7 @@ VALUES
   'FINISHED',                             -- status
   'b0000000-0000-0000-0000-000000000001', -- winnerId (Player 1 ha vinto)
   
-  -- Inizio del campo JSONB (Mappato esattamente sull'interfaccia GameState)
+  -- Inizio del campo JSONB
   '{
     "configuration": {
       "gridSize": 22,

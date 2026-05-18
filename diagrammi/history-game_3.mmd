@@ -1,0 +1,45 @@
+sequenceDiagram
+    participant Client
+    participant Route as GameRoutes
+    participant Auth as authenticateJWT
+    participant Controller as GameController
+    participant Service as BaseGameService via PvEGameService
+    participant Repository as GameRepository
+    participant DAO as GameDAO
+    participant ModelDB as Game Model / Games table
+    participant ErrorHandler
+
+    Client->>Route: GET /api/games/:id/history-game
+    Route->>Auth: authenticateJWT
+
+    alt JWT mancante o non valido
+        Auth-->>ErrorHandler: UNAUTHORIZED
+        ErrorHandler-->>Client: 401 JSON error
+    else JWT valido
+        Auth-->>Route: req.user.id
+        Route->>Controller: getGameHistory(req, res, next)
+
+        Controller->>Service: getGameHistory(gameId, userId)
+        Service->>Repository: getById(gameId)
+        Repository->>DAO: fetchSingle(gameId)
+        DAO->>ModelDB: Game.findByPk(gameId)
+        ModelDB-->>DAO: Game | null
+        DAO-->>Repository: Game | null
+        Repository-->>Service: Game | null
+
+        alt partita non trovata
+            Service-->>ErrorHandler: NOT_FOUND
+            ErrorHandler-->>Client: 404 JSON error
+        else utente non partecipante
+            Service-->>ErrorHandler: FORBIDDEN
+            ErrorHandler-->>Client: 403 JSON error
+        else accesso consentito
+            Service->>Service: estrae state.history da game.gameState
+            Service-->>Controller: historyData
+
+            Controller->>Controller: JSON.stringify(historyData, null, 2)
+            Controller->>Controller: set Content-Type application/json
+            Controller->>Controller: set Content-Disposition attachment
+            Controller-->>Client: 200 file JSON history_game_id.json
+        end
+    end
